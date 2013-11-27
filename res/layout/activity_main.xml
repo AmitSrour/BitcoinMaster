@@ -1,0 +1,106 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:minWidth="25dp"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    tools:context=".MainActivity" >
+
+    <Spinner
+        android:id="@+id/spinnerRateCurrency"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/editResult"
+        android:layout_alignParentRight="true"
+        android:layout_alignTop="@+id/editResult"
+        tools:listitem="@android:layout/simple_spinner_item" />
+
+    <Spinner
+        android:id="@+id/spinnerExchange"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_alignRight="@+id/editFee"
+         />
+
+    <EditText
+        android:id="@+id/editBitcoin"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_below="@+id/spinnerExchange"
+        android:ems="10"
+        android:hint="Bitcoin"
+        android:inputType="numberDecimal" >
+
+        <requestFocus />
+    </EditText>
+
+    <EditText
+        android:id="@+id/editFee"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/editBitcoin"
+        android:layout_toLeftOf="@+id/spinnerRateCurrency"
+        android:layout_toRightOf="@+id/FeeSign"
+        android:ems="10"
+        android:hint="Fee"
+        android:inputType="numberDecimal" />
+
+    <EditText
+        android:id="@+id/editResult"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignLeft="@+id/FeeSign"
+        android:layout_alignRight="@+id/editFee"
+        android:layout_below="@+id/editFee"
+        android:ems="10"
+        android:hint="Result"
+        android:inputType="numberDecimal" />
+
+    <Spinner
+        android:id="@+id/spinnerFee"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/editFee"
+        android:layout_alignParentRight="true"
+        android:layout_alignTop="@+id/editFee"
+        android:layout_toRightOf="@+id/editFee" />
+
+    <ToggleButton
+        android:id="@+id/FeeSign"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignBottom="@+id/editFee"
+        android:layout_alignLeft="@+id/editBitcoin"
+        android:layout_below="@+id/editBitcoin"
+        android:contentDescription="Positive or negative fee"
+        android:maxWidth="32dip"
+        android:minWidth="32dip"
+        android:textOff="-"
+        android:textOn="+" />
+
+    <ImageButton
+        android:id="@+id/btnRefresh"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignRight="@+id/editBitcoin"
+        android:layout_alignTop="@+id/spinnerExchange"
+        android:src="@drawable/ic_action_refresh"
+        android:onClick="onClickRefresh"
+         />
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/btnRefresh"
+        android:layout_alignLeft="@+id/btnRefresh"
+        android:layout_alignRight="@+id/editBitcoin" />
+
+</RelativeLayout>
