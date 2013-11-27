@@ -1,0 +1,629 @@
+package com.amits.bitcoinmaster;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Locale;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.StatusLine;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.params.BasicHttpParams;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.StrictMode;
+import android.app.Activity;
+import android.app.ProgressDialog;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.Log;
+import android.view.Menu;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.Toast;
+import android.widget.ToggleButton;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+public class MainActivity extends Activity {
+	
+	SQLiteDatabase mydb;
+	private static String DBNAME = "main.db";	// THIS IS THE SQLITE DATABASE FILE NAME.
+	
+	private static EditText editBitcoin,editFee,editResult;
+	private static ToggleButton tglFeeSign;
+	private static ImageButton btnRefresh;
+	private static Spinner spinnerExchange,spinnerRateCurrency,spinnerFee;
+	
+	private static double CurrentExchangeRateInDollars = 200;
+	private static double CurrentBitcoin = 1;
+	private static double CurrentFee = 0;
+	private static double CurrentResult = 200;
+	private static double CurrentConversionToDollars = 0.2;
+	private static String CurrentFeeSign = "+";
+	private static String CurrentFeeRate = "%";
+	private static String CurrentExchange = "Bit2c";
+	private static String CurrentExchangeCurrency = "ILS";
+	private static String CurrentCurreny = "ILS"; // The current Result Currency
+
+	
+	private static String DefaultExchange = "Bit2c";
+	private static String DefaultCurrency = "ILS";
+	private static String DefaultExchangeParameter = "last";
+	
+	private static int ExchangeCounter=0;
+	private static int CurrencyCounter=0;
+	private static ArrayList<String> ExchangeArray = new ArrayList<String>();
+	private static ArrayList<String> CurrencyArray = new ArrayList<String>();
+	private static ArrayList<String> FeeArray = new ArrayList<String>();
+	
+	//Json stuff
+	private static double JsonResultDouble = 0;
+	private static String JsonResultString = "";
+	private static String JsonUrl = "";
+	private static String JsonParameter = "";
+	
+	
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+	//	StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+	//	StrictMode.setThreadPolicy(policy);
+        	dropTable("apis");		// DROPPING THE APIS TABLE.
+        	dropTable("currency");		// DROPPING THE Currency TABLE.
+        	createTable();
+        	insertIntoTable(); //insert the currencies and apis into the tables.      
+        editBitcoin = (EditText) findViewById(R.id.editBitcoin);
+        editFee = (EditText) findViewById(R.id.editFee);
+        editResult = (EditText) findViewById(R.id.editResult);
+        tglFeeSign = (ToggleButton) findViewById(R.id.FeeSign);
+        btnRefresh = (ImageButton) findViewById(R.id.btnRefresh);
+        spinnerExchange = (Spinner) findViewById(R.id.spinnerExchange);
+        spinnerRateCurrency = (Spinner) findViewById(R.id.spinnerRateCurrency);
+        spinnerFee = (Spinner) findViewById(R.id.spinnerFee);
+        populateAll();
+       // updateBitcoin();
+        //calculateResult();
+        spinnerExchange.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {//onItem selected on Exchange spinner Listener
+        	public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
+        		updateAll();
+        		updateCurrentExchangeRate();//changes the current echange Rate value of bitcoin.
+        		updateCurrentConversionToDollars();
+        		editResult.setText(calculateResult()+"");
+        	}
+        	public void onNothingSelected(AdapterView<?> parent) {}});
+        editBitcoin.addTextChangedListener(new TextWatcher() {//Bitcoin listener
+        public void afterTextChanged(Editable s) {
+            // you can call or do what you want with your EditText here
+        	updateBitcoin();
+        	updateExchangeRate();
+        	updateCurrentConversionToDollars();
+        	//updateExchangeRate();
+        	editResult.setText(calculateResult()+"");
+          }
+          public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+          public void onTextChanged(CharSequence s, int start, int before, int count) {}
+       });
+        }
+
+	public void onClickRefresh(View view){
+		calculateResult();
+		refresh();
+	}
+	public void updateBitcoin(){//updates CurrentBitcoin
+		CurrentBitcoin = 0;
+		if(!editBitcoin.getText().toString().equals(""))
+		CurrentBitcoin = Double.parseDouble(editBitcoin.getText().toString());
+	}
+	public void updateFee(){//updates CurrentFee
+		CurrentFee=0;
+		if(!editFee.getText().toString().isEmpty()){
+		CurrentFee = Double.parseDouble(editFee.getText().toString());
+		}
+	}
+	public void updateCurrentExchangeCurrency(){
+		CurrentExchangeCurrency = getCurrentExchangeCurrency();
+	}
+	public void updateResult(){//updated CurrentResult
+		CurrentResult = 0;
+		if(!editResult.getText().toString().equals(""))
+		CurrentResult = Double.parseDouble(editResult.getText().toString());
+	}
+	public void updateExchange(){//updates the CurrentExchange
+		int index = spinnerExchange.getSelectedItemPosition();
+		CurrentExchange = ExchangeArray.get(index);
+	}
+	public void updateCurrency(){//updates the CurrentCurreny
+		int index = spinnerRateCurrency.getSelectedItemPosition();
+		CurrentCurreny = CurrencyArray.get(index);
+	}
+	public void updateFeeRate(){//updates the CurrentFeeRate
+		int index = spinnerFee.getSelectedItemPosition();
+		CurrentFeeRate = FeeArray.get(index);
+	}
+	public void updateFeeSign(){//updates the CurrentFeeSign
+		if(tglFeeSign.isActivated()){
+			CurrentFeeSign = "+";
+		}
+		else{
+			CurrentFeeSign = "-";
+		}
+	}
+	public void updateAll(){
+		updateBitcoin();
+		updateFee();
+		updateResult();
+		updateExchange();
+		updateCurrency();
+		updateFeeRate();
+		updateFeeSign();
+		//updateExchangeRate();//muted because is network costly saved for first time and forced refresh
+		updateCurrentExchangeCurrency();
+		Log.i("","Current Exchange Currency:"+CurrentExchangeCurrency);
+
+	}
+	public void populateAll(){
+        populateExchangeSpinner();
+        populateCurrencySpinner();
+        populateFeeSpinner();
+        editBitcoin.setText(CurrentBitcoin+"");
+        editResult.setText(CurrentResult+"");
+	}
+	public void refresh(){
+		updateAll();
+		calculateResult();
+        editBitcoin.setText(CurrentBitcoin+"");
+        editResult.setText(CurrentResult+"");
+	}
+	public double calculateBitcoin(){
+		double bitCoin = CurrentBitcoin;
+		bitCoin= bitCoin*CurrentExchangeRateInDollars;
+		return 0;
+	}
+	public double calculateResult(){
+		//updateCurrentExchangeRate(); too costly
+		updateBitcoin();
+			CurrentResult = CurrentBitcoin*CurrentExchangeRateInDollars/CurrentConversionToDollars;
+		showToast("Current Exchange rate in dollars:"+CurrentExchangeRateInDollars+"Current Bitcoin(validating):"+CurrentBitcoin+" Current Conversion to dollars:"+CurrentConversionToDollars);
+		return CurrentResult;
+		
+	}
+	public double calculateFee(){
+		double fee=CurrentFee;
+		if(CurrentFeeSign.equals("-")){ //if negative fee
+			fee = fee*-1;
+		}
+		if(CurrentFeeRate.equals("%")){
+			fee = fee/100;
+		}
+		if(CurrentFeeRate.equals("$")){
+			fee = fee*ConvertToDollars("USD");
+		}
+		if(CurrentFeeRate.equals("₪")){
+			fee = fee*ConvertToDollars("ILS");
+		}
+		if(CurrentFeeRate.equals("€")){
+			fee = fee*ConvertToDollars("EUR");
+		}
+		return fee;
+	}
+	public void updateExchangeRate(){
+		//take the exchange currency convert to dollar
+		showToast("Current Exchange Currency:"+CurrentExchangeCurrency);
+		CurrentExchangeRateInDollars = ConvertToDollars(CurrentExchangeCurrency);
+	}
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+	public void createTable(){
+    	try{
+    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+    	mydb.execSQL("CREATE TABLE apis (ticker TEXT, last TEXT, high TEXT, low TEXT, name TEXT, currency TEXT);");
+    	mydb.execSQL("CREATE TABLE currency (currency TEXT, ticker TEXT, parameter TEXT);");
+    	mydb.close();
+    	}catch(Exception e){
+    		showToast("Error in creating tables");
+    	}
+    }
+    public void insertIntoTable(){// THIS FUNCTION INSERTS DATA TO THE DATABASE
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	mydb.execSQL("INSERT INTO 'apis' VALUES('https://www.bit2c.co.il/Exchanges/NIS/Ticker.json','ll','h','l','Bit2c','ILS');");
+	    	mydb.execSQL("INSERT INTO 'apis' VALUES('https://www.bitstamp.net/api/ticker','last','high','low','BitStamp','USD');");
+	    	mydb.execSQL("INSERT INTO 'currency' VALUES('ILS','http://rate-exchange.appspot.com/currency?from=ILS&to=USD','rate');");
+	    	mydb.execSQL("INSERT INTO 'currency' VALUES('USD','http://rate-exchange.appspot.com/currency?from=ILS&to=USD','rate');");//the rate should be equals 1/
+	    	mydb.execSQL("INSERT INTO 'currency' VALUES('EUR','http://rate-exchange.appspot.com/currency?from=EUR&to=USD','rate');");
+	    	
+	    	mydb.close();
+	    }catch(Exception e){
+			showToast("Error in inserting into table");
+		}
+    }
+    public void populateExchangeSpinner(){// THIS FUNCTION SHOWS DATA FROM THE DATABASE
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'apis'", null);
+	    	Integer cname = allrows.getColumnIndex("name");
+	    	Integer ccurrency = allrows.getColumnIndex("currency");
+
+			ArrayAdapter <CharSequence> adapter = new ArrayAdapter <CharSequence> (this, android.R.layout.simple_spinner_item);
+			adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+			if(allrows.moveToFirst()){
+				do{
+					String name = allrows.getString(cname);
+					String currency = allrows.getString(ccurrency);
+			    	adapter.add(name+"("+currency+")");
+			    	ExchangeCounter++;
+			    	ExchangeArray.add(name);
+
+
+				}
+				while(allrows.moveToNext());
+			}
+			spinnerExchange.setAdapter(adapter);
+			mydb.close();
+    	 }catch(Exception e){
+ 			showToast("Error encountered.");
+ 		}
+	}
+    public void populateCurrencySpinner(){
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'currency'", null);
+	    	Integer ccurrency = allrows.getColumnIndex("currency");
+
+			ArrayAdapter <CharSequence> adapter = new ArrayAdapter <CharSequence> (this, android.R.layout.simple_spinner_item);
+			adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+			if(allrows.moveToFirst()){
+				do{
+					String currency = allrows.getString(ccurrency);
+			    	adapter.add(currency);
+			    	CurrencyCounter++;
+			    	CurrencyArray.add(currency);
+
+
+				}
+				while(allrows.moveToNext());
+			}
+			spinnerRateCurrency.setAdapter(adapter);
+			mydb.close();
+    	 }catch(Exception e){
+ 			showToast("Error encountered.");
+ 		}
+	}
+    public void populateFeeSpinner(){
+
+			ArrayAdapter <CharSequence> adapter = new ArrayAdapter <CharSequence> (this, android.R.layout.simple_spinner_item);
+			adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+			    	adapter.add("%");
+			    	adapter.add("$");
+			    	adapter.add("€");
+			    	adapter.add("₪");
+
+			    	FeeArray.add("%");
+			    	FeeArray.add("$");
+			    	FeeArray.add("€");
+			    	FeeArray.add("₪");
+			spinnerFee.setAdapter(adapter);
+
+	}
+    public void updateTable(String table,String fieldNameToSet,String fieldValueToSet,String whereFieldName,String whereFieldValue){
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	mydb.execSQL("UPDATE '"+table+"' SET '"+fieldNameToSet+"' = '"+ fieldValueToSet+"' WHERE '"+whereFieldName+"' = '"+ whereFieldValue+"'");
+	    	mydb.close();
+	    }catch(Exception e){
+			showToast("Error encountered");
+		}
+    }
+    public void deleteValues(String table,String whereFieldName,String whereFieldValue){
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	mydb.execSQL("DELETE FROM '" + table + "' WHERE '"+ whereFieldName+"' = '"+whereFieldValue+"'");
+	    	mydb.close();
+	    }catch(Exception e){
+			showToast("Error encountered while deleting.");
+		}
+    }    
+    public void dropTable(String Table){// THIS FUNTION DROPS A TABLE
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	mydb.execSQL("DROP TABLE IF EXISTS '"+Table+"';");
+	    	mydb.close();
+	    }catch(Exception e){
+			showToast("Error encountered while dropping.");
+		}
+    }
+    public void updateCurrentExchangeRate(){
+    	double currentExchangeRate = getCurrentExchangeRate();
+    	CurrentExchangeRateInDollars = CurrentConversionToDollars*currentExchangeRate;
+    	Log.i("","Current Exchange rate in dollars:"+CurrentExchangeRateInDollars+" Current Exchange rate in its own Currency:"+currentExchangeRate);
+    }
+    public void updateCurrentConversionToDollars(){
+    	CurrentConversionToDollars=ConvertToDollars(CurrentExchangeCurrency);
+    }
+    public String getCurrentExchangeCurrency(){//return the Current Exchange Currency
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'apis'", null);
+	    	Integer cname = allrows.getColumnIndex("name");
+	    	Integer ccurrency = allrows.getColumnIndex("currency");
+
+			ArrayAdapter <CharSequence> adapter = new ArrayAdapter <CharSequence> (this, android.R.layout.simple_spinner_item);
+			adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+			if(allrows.moveToFirst()){
+				do{
+					String name = allrows.getString(cname);
+					String currency = allrows.getString(ccurrency);
+					if(name.equals(CurrentExchange)){
+						return currency;
+					}
+
+
+				}
+				while(allrows.moveToNext());
+			}
+			mydb.close();
+    	 }catch(Exception e){
+ 			showToast("Error encountered.");
+ 		}
+    	return "Error in Figuring the current Exchange Currency";
+    }
+    public String getCurrentExchangeParameter(String type){//return the Current Exchange parameter. parameter can be: last,high,low
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'apis'", null);
+	    	Integer cname = allrows.getColumnIndex("name");
+	    	Integer cparameter = allrows.getColumnIndex(type);
+
+			ArrayAdapter <CharSequence> adapter = new ArrayAdapter <CharSequence> (this, android.R.layout.simple_spinner_item);
+			adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+			if(allrows.moveToFirst()){
+				do{
+					String name = allrows.getString(cname);
+					String parameter = allrows.getString(cparameter);
+					if(name.equals(CurrentExchange)){
+						return parameter;
+					}
+
+
+				}
+				while(allrows.moveToNext());
+			}
+			mydb.close();
+    	 }catch(Exception e){
+ 			showToast("Error encountered.");
+ 		}
+    	return "Error in Figuring the current Exchange Currency";
+    }
+    public double ConvertToDollars(String currency){//example ConvertToDollar(USD) = 1;
+    	if (currency.equals("USD")){
+    		return getParameter(getCurrencyTicker(currency),"rate");
+    	}
+    	return getParameter(getCurrencyTicker(CurrentExchangeCurrency),"rate");
+    }
+    public double getCurrentExchangeRate(){
+    	JsonParameter = getCurrentExchangeParameter(DefaultExchangeParameter);
+    	return getParameter(getRateTicker(CurrentExchange),getCurrentExchangeParameter(DefaultExchangeParameter));
+    }
+    public String readJsonFeed(String url) {
+	    StringBuilder builder = new StringBuilder();
+	    HttpClient client = new DefaultHttpClient();
+	    HttpGet httpGet = new HttpGet(url);
+	    try {
+	      HttpResponse response = client.execute(httpGet);
+	      StatusLine statusLine = response.getStatusLine();
+	      int statusCode = statusLine.getStatusCode();
+	      if (statusCode == 200) {
+	        HttpEntity entity = response.getEntity();
+	        InputStream content = entity.getContent();
+	        BufferedReader reader = new BufferedReader(new InputStreamReader(content));
+	        String line;
+	        while ((line = reader.readLine()) != null) {
+	          builder.append(line);
+	        }
+	      } else {
+	        Log.e("", "Failed to download file");
+	      }
+	    } catch (ClientProtocolException e) {
+	      e.printStackTrace();
+	    } catch (IOException e) {
+	      e.printStackTrace();
+	    }
+	    return builder.toString();
+	  }
+    public String getCurrencyTicker(String currencyName){
+    	try{
+    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'currency'", null);
+    	Integer ccurrency = allrows.getColumnIndex("currency");
+    	Integer cticker = allrows.getColumnIndex("ticker");
+		if(allrows.moveToFirst()){
+			do{
+				String ExchangeName = allrows.getString(ccurrency);
+				String ticker = allrows.getString(cticker);
+		    	if(currencyName.equals(ExchangeName)){
+		    		Log.i("value","Here be dragons and ticker");	
+		    		return ticker;
+		    	}
+			}
+			while(allrows.moveToNext());
+		}
+		mydb.close();
+	 }catch(Exception e){
+			showToast("Error encountered.");
+		}
+	return "Error";
+    }
+	public String getRateTicker(String name){
+    	try{
+	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
+	    	Cursor allrows  = mydb.rawQuery("SELECT * FROM 'apis'", null);
+	    	Integer cname = allrows.getColumnIndex("name");
+	    	Integer cticker = allrows.getColumnIndex("ticker");
+			if(allrows.moveToFirst()){
+				do{
+					String ExchangeName = allrows.getString(cname);
+					String ticker = allrows.getString(cticker);
+			    	if(name.equals(ExchangeName))
+			    		return ticker;
+				}
+				while(allrows.moveToNext());
+			}
+			mydb.close();
+    	 }catch(Exception e){
+ 			showToast("Error encountered.");
+ 		}
+    	return "Error";
+	}
+	public String getParameterString(String ticker,String parameter){		
+	    try {
+	    	JsonUrl = ticker;
+	    	JsonParameter = parameter;
+	    	JSONParse job = new JSONParse();
+	    	job.execute();
+	    	 return JsonResultString;	       
+	        }	        
+	       catch (Exception e) {
+	        e.printStackTrace();
+	        showToast("Error with getParameterString");
+	      }
+	    return "Error";//return 0 if error
+	}
+	private class JSONParse extends AsyncTask<String, String, JSONObject> {
+    	 private ProgressBar progressBar;
+    	@Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            progressBar = (ProgressBar) findViewById(R.id.progressBar);
+            progressBar.setIndeterminate(true);
+            progressBar.setVisibility(View.VISIBLE);
+            progressBar.setProgress(100);
+    	}
+
+    	@Override
+        protected JSONObject doInBackground(String... args) {
+    		JSONObject jsonObject = null;
+    		try{
+    		    // Create a new HTTP Client
+    		    DefaultHttpClient defaultClient = new DefaultHttpClient();
+    		    // Setup the get request
+    		    HttpGet httpGetRequest = new HttpGet(JsonUrl);
+
+    		    // Execute the request in the client
+    		    HttpResponse httpResponse = defaultClient.execute(httpGetRequest);
+    		    // Grab the response
+    		    BufferedReader reader = new BufferedReader(new InputStreamReader(httpResponse.getEntity().getContent(), "UTF-8"));
+    		    String json = reader.readLine();
+
+    		    // Instantiate a JSON object from the request response
+    		    jsonObject = new JSONObject(json);
+    		    return jsonObject;
+    		} catch(Exception e){
+    		    // In your production code handle any errors and catch the individual exceptions
+    		    e.printStackTrace();
+    		}
+    		return jsonObject;
+//    		JSONObject Jobj = null;
+//    		DefaultHttpClient   httpclient = new DefaultHttpClient(new BasicHttpParams());
+//    		HttpPost httppost = new HttpPost(JsonUrl);
+//    		// Depends on your web service
+//    		httppost.setHeader("Content-type", "application/json");
+//
+//    		InputStream inputStream = null;
+//    		String result = null;
+//    		try {
+//    		    HttpResponse response = httpclient.execute(httppost);           
+//    		    HttpEntity entity = response.getEntity();
+//
+//    		    inputStream = entity.getContent();
+//    		    // json is UTF-8 by default
+//    		    BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"), 8);
+//    		    StringBuilder sb = new StringBuilder();
+//
+//    		    String line = null;
+//    		    while ((line = reader.readLine()) != null)
+//    		    {
+//    		        sb.append(line + "\n");
+//    		        Log.i("",line);
+//    		    }
+//    			JSONArray arr = new JSONArray(sb.toString());
+//    			Jobj = arr.getJSONObject(0);
+//    			//Log.i("",sb.toString());
+//
+//    		} catch (Exception e) { 
+//    		    // Oops
+//    		}
+//    		finally {
+//    		    try{if(inputStream != null)inputStream.close();}catch(Exception squish){}
+//    		}
+//    		//Jobj = null;
+//    		//try {
+//				//Jobj = new JSONObject(sb.toString());
+//			//} catch (JSONException e1) {
+//				// TODO Auto-generated catch block
+//			//	e1.printStackTrace();
+//			//}
+//    	
+//				return Jobj;
+    	}
+    	 @Override
+         protected void onPostExecute(JSONObject json) {
+    		 progressBar.setVisibility(View.INVISIBLE);
+    		 try {
+    				// Getting JSON Array
+    			 Log.i("","Json parameter:"+JsonParameter);
+    			 	JsonResultString = json.getString(JsonParameter).toString();
+    		} catch (Exception e) {
+    			e.printStackTrace();
+    		}
+
+    	 }
+    }
+	public double getParameter(String ticker,String parameter){		
+	    try {
+	    	JsonUrl = ticker;
+	    	JsonParameter = parameter;
+	        Log.e("",ticker+" Parameter:"+parameter);
+	    	 new JSONParse().execute();
+	    	 
+	    	 if(JsonResultString.equals("")){
+	    		 return 0;
+	    	 }
+	    	 else{
+	    		 return Double.parseDouble(JsonResultString);		 
+	    	 }
+	        }	        
+	       catch (Exception e) {
+	        e.printStackTrace();
+	        Log.e("",ticker+" Paramete:"+parameter);
+	        showToast("Debug:Poblem with an api result:"+ticker);
+	      }
+	    return 0;//return 0 if error
+	}	
+	public void showToast(String message){
+    	Toast msg= Toast.makeText(getApplicationContext(), message,Toast.LENGTH_SHORT);
+    	msg.show();
+	}
+}
