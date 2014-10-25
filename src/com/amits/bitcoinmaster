@@ -42,6 +42,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+//check to see if all of this imports are important..
 public class MainActivity extends Activity {
 	
 	SQLiteDatabase mydb;
@@ -284,7 +285,7 @@ public class MainActivity extends Activity {
 			spinnerExchange.setAdapter(adapter);
 			mydb.close();
     	 }catch(Exception e){
- 			showToast("Error encountered.");
+ 			showToast("Error encountered : "+ e);
  		}
 	}
     public void populateCurrencySpinner(){
@@ -476,6 +477,7 @@ public class MainActivity extends Activity {
 		}
 	return "Error";
     }
+    //all db handeling should be in a differend module/file
 	public String getRateTicker(String name){
     	try{
 	    	mydb = openOrCreateDatabase(DBNAME, Context.MODE_PRIVATE,null);
@@ -511,6 +513,7 @@ public class MainActivity extends Activity {
 	      }
 	    return "Error";//return 0 if error
 	}
+	//all the json should be in a differend module
 	private class JSONParse extends AsyncTask<String, String, JSONObject> {
     	 private ProgressBar progressBar;
     	@Override
